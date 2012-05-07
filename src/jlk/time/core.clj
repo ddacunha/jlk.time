@@ -1,17 +1,12 @@
 (ns jlk.time.core
   (:refer-clojure :exclude [format time])
+  (use [jlk.utility.core :only [exception]])
   (import [java.lang IllegalArgumentException]
 	  [org.joda.time MutableDateTime LocalDateTime]
 	  [org.joda.time.format DateTimeFormat DateTimeFormatter ISODateTimeFormat]))
-
 ;;
-;; i'm going to try define a purely clojure time type and use joda to handle time complexities
-;; -- see functions near the end
-;;
-
-;;
-;; joda library would appear to be a good match for clojure since it primarily
-;; uses immutable data objects
+;; this is going back to be a thin wrapper around joda time
+;; there is some new stuff in clojure 1.4 to do with time, look into this
 ;;
 
 (defmulti formatter
@@ -49,6 +44,7 @@ source: joda time api
   (fn [x] (if (instance? String x)
             :string
             x)))
+(def fmt formatter)
 
 (defmethod formatter :string
   [s]
@@ -98,117 +94,50 @@ source: joda time api
   [_]
   (DateTimeFormat/longDateTime))
 
-;; NYI - default parsing types
-;;     - i'm not actually sure they *should* be implemented
-;;
-;; (def ^:dynamic *formatters*
-;;   "formatters used by parse/format functions"
-;;   nil)
+(defmulti convert
+  "convert date between formats.  eg (convert (now) (fmt :iso)"
+  (fn [_ to-format] (if (keyword? to-format)
+                      to-format
+                      :format))) ;; should check if it is a formatter first
 
-;;
-;; parsing only occurs using strings and formatters
-;;
+(defmethod convert :java
+  [t _]
+  (java.util.Date. (.getMillis t)))
+
+(defmethod convert :long
+  [t _]
+  (.getMillis t))
+
+(defmethod convert :sql-date
+  [t _]
+  (java.sql.Date. (.getMillis t)))
+
+(defmethod convert :sql-time
+  [t _]
+  (java.sql.Time. (.getMillis t)))
+
+(defmethod convert :sql-timestamp
+  [t _]
+  (java.sql.Timestamp. (.getMillis t)))
+
+(defmethod convert :format
+  [t f]
+  (.print f t))
+
+;; (defmethod convert :default
+;;   [_ _]
+;;   (exception "no valid conversion"))
+
+(defn now
+  []
+  (org.joda.time.DateTime.))
+(defn timestamp
+  ([]
+     (convert (now) :long))
+  ([t]
+     (convert t :long)))
 
 (defn parse
-  ([s]
-     (throw (Exception. "NYI - default parsing types")))
-  ([s formatter]
-     (.parseDateTime formatter s)))
-
-(defn string
-  ([d]
-     (throw (Exception. "NYI - default parsing types")))
-  ([d formatter]
-     (.print formatter d)))
-
-;; (defn to-timestamp
-;;   [t]
-;;   (java.sql.Timestamp. (.getMillis t)))
-
-;;
-;; time type in jlk.common
-;;
-
-;; time objects keep track of how they are formatted...
-;; valid formats are:
-;;   - :keyword/string (see above)
-;;   - :timestamp/long
-;;   - :joda/org.joda.time.DateTime
-;;   - :sql-timestamp/java.sql.Timestamp
-(defrecord Time [format value])
-
-(defmulti to-joda
-  "assume that we are being given a jlk.time.Time"
-  :format)
-(defmethod to-joda :joda
-  [{:keys [value]}]
-  value)
-(defmethod to-joda :timestamp
-  [{:keys [value]}]
-  (org.joda.time.DateTime. value))
-(defmethod to-joda :sql-timestamp
-  [{:keys [value]}]
-  (org.joda.time.DateTime. (.getTime value)))
-(defmethod to-joda :sql-date
-  [{:keys [value]}]
-  (org.joda.time.DateTime. (.getTime value)))
-(defmethod to-joda :sql-time
-  [{:keys [value]}]
-  (org.joda.time.DateTime. (.getTime value)))
-(defmethod to-joda :java-date
-  [{:keys [value]}]
-  (org.joda.time.DateTime. (.getTime value)))
-(defmethod to-joda :default
-  [{:keys [format value]}]
-  (parse value (formatter format)))
-
-(defmulti to-time
-  "assume that we are being given a joda DateTime"
-  (fn [d format] format))
-(defmethod to-time :joda
-  [d _]
-  (Time. :joda d))
-(defmethod to-time :timestamp
-  [d _]
-  (Time. :timestamp (.getMillis d)))
-(defmethod to-time :sql-timestamp
-  [d _]
-  (Time. :sql-timestamp (java.sql.Timestamp. (.getMillis d))))
-(defmethod to-time :sql-date
-  [d _]
-  (Time. :sql-date (java.sql.Date. (.getMillis d))))
-(defmethod to-time :sql-time
-  [d _]
-  (Time. :sql-time (java.sql.Time. (.getMillis d))))
-(defmethod to-time :java-date
-  [d _]
-  (Time. :java-date (java.util.Date. (.getMillis d))))
-(defmethod to-time :default
-  [d format]
-  (Time. format (string d (formatter format))))
-
-;;
-;; define a how to make a Time
-;; the following are more 'user' functions
-;;
-(defn now
-  [format]
-  (to-time (org.joda.time.DateTime.) format))
-
-(defn convert
-  [t to-format]
-  (to-time (to-joda t) to-format))
-
-(defn time
-  "this is like parse, but returns a jlk.time.Time"
-  ([s]
-     (throw (Exception. "NYI - default parsing types")))
-  ([s format]
-     (to-time (parse s (formatter format)) format))
-  ([s input-format output-format]
-     (to-time (parse s (formatter input-format)) output-format)))
-
-(defn timestamp
-  "this accepts a long (long)"
-  ([l] (to-time (org.joda.time.DateTime. l) :timestamp))
-  ([l format] (to-time (org.joda.time.DateTime. l) format)))
+  [s formatter]
+  (.parseDateTime formatter s))
+(def time parse)
