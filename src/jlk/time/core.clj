@@ -140,4 +140,23 @@ source: joda time api
 (defn parse
   [s formatter]
   (.parseDateTime formatter s))
-(def time parse)
+
+;;
+;; main user function
+;;
+
+(defmulti time
+  "produce a joda time object.  provide a Java time object, Long or a string with a formatter."
+  (fn [x & args] (class x)))
+(defmethod time java.util.Date
+  [d]
+  (org.joda.time.DateTime. d))
+(defmethod time java.sql.Date
+  [d]
+  (org.joda.time.DateTime. d))
+(defmethod time Long
+  [d]
+  (org.joda.time.DateTime. d))
+(defmethod time String
+  [s & args]
+  (apply parse s args))
