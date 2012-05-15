@@ -1,6 +1,25 @@
 # time
 
+a number of clojure wrappers around joda time.
+
 ## Usage
+
+function 'time' will produce a joda object when given an appropriate java object or string and formatter.  eg.
+
+(time 123456) creates from a Long timestamp
+(time (java.util.Date. xxx)) from a java Date object
+(time (java.sql.Date. xxx)) from a java sql Date object
+(time "2012" (formatter "YYYY")) from a string and format object
+(time "2012-02-03" (formatter :iso-date)) from a string and format object
+
+function 'convert' works in the opposite direction.  eg.
+(convert (now) :java) -> java.util.Date
+(convert (now) (formatter "YYYY")) -> String
+
+there are also convienience functions 'now' and 'timestamp'
+
+## TODO
+update and merge my joda period handling functions
 
 ## License
 
